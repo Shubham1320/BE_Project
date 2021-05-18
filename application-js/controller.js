@@ -31,7 +31,12 @@ exports.createAsset = async function(req, res) {
 	let organization = req.body.organization;
 	let orgUserId = req.body.orgUserId;
 	let msp = req.body.msp;
+
 	let assetKey = req.body.assetKey;
+	let assetName = req.body.assetName;
+	let manufacturingDate = req.body.manufacturingDate;
+	let expiryDate = req.body.expiryDate;
+	let size = req.body.size;
 
 	try {
 		let gateway = await createGateway(organization,orgUserId);
@@ -47,8 +52,10 @@ exports.createAsset = async function(req, res) {
 		let asset_properties = {
 			object_type: 'asset_properties',
 			asset_id: assetKey,
-			color: 'blue',
-			size: 35,
+			assetName: assetName,
+			manufacturingDate: manufacturingDate,
+			expiryDate: expiryDate,
+			size: size,
 			salt: salt
 		};
 		
@@ -61,11 +68,95 @@ exports.createAsset = async function(req, res) {
 		transaction.setTransient({
 			asset_properties: encoded_string
 		});
-		let err = await transaction.submit(assetKey, `Not for sale`);
+		await transaction.submit(assetKey, `Not for sale`);
 
-		res.json({success: true,err: err,salt: salt});
+		res.json({success: true,salt: salt});
+		
+
 	}	
 	catch (error) {
 		console.error(error);
+		res.json({success: false,error: error});
 	}
 }
+
+exports.readAsset = async function(req,res) {
+
+	let channelName = req.body.channelName;
+	let chaincodeName = req.body.chaincodeName;
+	let assetKey = req.body.assetKey;
+	let organization = req.body.organization;
+	let orgUserId = req.body.orgUserId;
+
+	try {
+		let gateway = await createGateway(organization,orgUserId);
+		let network = await gateway.getNetwork(channelName);
+		let contract = network.getContract(chaincodeName);
+		console.log("Connected to organization peer");
+
+		let result = await contract.evaluateTransaction('ReadAsset', assetKey);
+		let asset = JSON.parse(result.toString('utf8'));
+
+		res.json({success: true,result: asset});
+
+	}	
+	catch (error) {
+		console.error(error);
+		res.json({success: false,error: error});
+	}
+
+}
+
+exports.readPrivateProps = async function(req,res) {
+	let channelName = req.body.channelName;
+	let chaincodeName = req.body.chaincodeName;
+	let organization = req.body.organization;
+	let orgUserId = req.body.orgUserId;
+	let assetKey = req.body.assetKey;
+
+	try {
+		let gateway = await createGateway(organization,orgUserId);
+		let network = await gateway.getNetwork(channelName);
+		let contract = network.getContract(chaincodeName);
+		console.log("Connected to organization peer");
+
+		const result= await contract.evaluateTransaction('GetAssetPrivateProperties', assetKey);
+		const asset = JSON.parse(result.toString('utf8'));
+		res.json({success: true,result: asset});
+
+	}	
+	catch (error) {
+		console.error(error);
+		res.json({success: false,error: error});
+	}
+}
+
+exports.agreeToSell = async function(req,res) {
+
+	let channelName = req.body.channelName;
+	let chaincodeName = req.body.chaincodeName;
+	let organization = req.body.organization;
+	let orgUserId = req.body.orgUserId;
+	let assetKey = req.body.assetKey;
+	let msp = req.body.msp;
+
+	try {
+		let gateway = await createGateway(organization,orgUserId);
+		let network = await gateway.getNetwork(channelName);
+		let contract = network.getContract(chaincodeName);
+		console.log("Connected to organization peer");
+
+		let transaction1 = contract.createTransaction('ChangePublicDescription');
+		transaction1.setEndorsingOrganizations(msp);
+		await transaction1.submit(assetKey, `Up for sale`);
+
+		
+
+	}	
+	catch (error) {
+		console.error(error);
+		res.json({success: false,error: error});
+	}
+
+}
+
